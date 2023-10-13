@@ -1,0 +1,6 @@
+
+pandas
+numpy
+gql
+requests
+requests_toolbelt
