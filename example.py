@@ -3,10 +3,10 @@ import sys
 import os
 
 # -- Load Addresses, Sourcing and Data objects
-from addresses import cex, dex, tokens
-from sources import Bitquery
+from Addresses import cex, dex, tokens
+from Sources import Bitquery
+from OnChain import LiquidityPool
 from queries.uniswap_dex_queries import bitquery_q1
-from sources import LiquidityPool
 
 # Parameters for the example
 p_ini_ts = '2023-08-01 00:00:00'

@@ -1,22 +1,13 @@
 
-# -- Load packages for this script
-
-import sys
-import os
-import json
-import requests
-import urllib
-import io
-import urllib3
+# -- import packages for this script
 import pandas as pd
-import numpy as np
-import datetime as dt
-
-from dateutil.relativedelta import *
-from abc import ABCMeta, abstractmethod
+import json
 from dataclasses import dataclass
+from abc import ABCMeta
 
-urllib3.disable_warnings()
+# -- Load other scripts
+from Processing import dataIO as io
+
 # -- ---------------------------------------------------------------------------------------------------- -- #
 # -- --------------------------------------------------------------------------- ABSTRACT CLASS: PROTOCOL -- #
 # -- ---------------------------------------------------------------------------------------------------- -- #
@@ -33,7 +24,7 @@ class AbstractProtocol(metaclass=ABCMeta):
         self.class_id = class_id        # str(16): The class id for internal use
         self.network_id = network_id    # str(16): The blockchain name (network)
         self.protocol_id = protocol_id  # str(16): The protocol's name (lowercase, no spaces, as internal)
-        self.symbol_id = symbol_id      # str(16): The symbol's id
+        self.symbol_id = symbol_id      # str(16): The symbol's id
         
         self.data = data                # dict: With any data that is being gathered and stored in self
         self.logs = logs                # None; Logs object to log the activity within the class
@@ -128,6 +119,7 @@ class LiquidityPool(AbstractProtocol):
         super(LiquidityPool, self).__init__(class_id='LiquidityPool', network_id=network_id, 
                                             protocol_id=protocol_id, data=None, logs=None)
 
+    # ----------------------------------------------------------------------------------- print(Tinybird) -- #
     # -- ------------------------------------------------------------------------------------------------ -- #
     
     def __str__(self):
@@ -208,6 +200,72 @@ class LiquidityPool(AbstractProtocol):
 
         return l_responses
 
+    # ------------------------------------------------------------------------------- GET TOKEN TRANSFERS -- #
+    # ------------------------------------------------------------------------------- ------------------- -- #
+
+    def get_tokentransfers(self, source:object = None, 
+                                 token_address:str = None,
+                                 sender_address:str = None,
+                                 receiver_address:str = None,
+                                 ini_ts:str = None, end_ts:str = None, **kwargs) -> pd.DataFrame():
+        """
+        """
+
+        p_ini_ts = pd.to_datetime(ini_ts).strftime('%Y-%m-%dT%H:%M:%S')
+        p_end_ts = pd.to_datetime(end_ts).strftime('%Y-%m-%dT%H:%M:%S')
+
+        query_variables = {"token_address": token_address,
+                           "sender_address": sender_address,
+                           "receiver_address": receiver_address, 
+                           "ini_ts": p_ini_ts,
+                           "end_ts": p_end_ts}
+        
+        query_source = kwargs['query_source'] if 'query_source' in list(kwargs.keys()) else None
+        query_content = kwargs['query_content'] if 'query_content' in list(kwargs.keys()) else None
+
+        e_params = {'query_variables': query_variables}
+        c_params = {'source': source, 'query_source': query_source, 'query_content': query_content,
+                    'parallel': False}
+
+        data_responses = self.get_data(source=source, endpoint_params=e_params, call_params=c_params)
+        r_formated_responses = self._post_process_response(l_responses=data_responses,
+                                                            expected_fields=['ethereum', 'transfers'],
+                                                            process='tokentransfers')
+
+        return data_responses
+    
+    # ----------------------------------------------------------------------------------- GET TOP WALLETS -- #
+    # ----------------------------------------------------------------------------------- --------------- -- #
+
+    def get_topwallets(self, source:object = None, token_address:str = None,
+                             ini_ts:str = None, end_ts:str = None, **kwargs) -> pd.DataFrame():
+        """
+        """
+
+        p_ini_ts = pd.to_datetime(ini_ts).strftime('%Y-%m-%dT%H:%M:%S')
+        p_end_ts = pd.to_datetime(end_ts).strftime('%Y-%m-%dT%H:%M:%S')
+
+        query_variables = {"token_address": token_address, "limit": 20,
+                           "ini_ts": p_ini_ts, "end_ts": p_end_ts}
+
+        query_source = kwargs['query_source'] if 'query_source' in list(kwargs.keys()) else None
+        query_content = kwargs['query_content'] if 'query_content' in list(kwargs.keys()) else None
+        resample = kwargs['resample'] if 'resample' in list(kwargs.keys()) else None
+        period = kwargs['period'] if 'period' in list(kwargs.keys()) else None
+
+        e_params = {'query_variables': query_variables}
+        c_params = {'source': source, 'query_source': query_source, 'query_content': query_content,
+                    'parallel': False}
+        
+        data_responses = self.get_data(source=source, endpoint_params=e_params, call_params=c_params)
+
+        r_formated_responses = self._post_process_response(l_responses=data_responses,
+                                                           expected_fields=['ethereum', 'transfers'],
+                                                           resample=resample, period=period,
+                                                           process='topwallets')
+
+        return r_formated_responses
+
     # ------------------------------------------------------------------------------------ GET DEX TRADES -- #
     # ------------------------------------------------------------------------------------ -------------- -- #
 
@@ -286,13 +344,14 @@ class LiquidityPool(AbstractProtocol):
         
         r_formated_responses = self._post_process_response(l_responses=data_responses,
                                                             expected_fields=['ethereum', 'dexTrades'],
-                                                            resample=resample, period=period)
+                                                            resample=resample, period=period,
+                                                            process='dextrades')
 
         return pd.concat(r_formated_responses, axis=0)
 
     # -- ------------------------------------------------------------------------------------------------ -- #
     def _post_process_response(self, l_responses:list = None, expected_fields:object = None,
-                                     resample:bool = False, period:str = '1H') -> list():
+                                     resample:bool = False, period:str = '1H', **kwargs) -> list():
         """
         Post processing the response
 
@@ -323,6 +382,8 @@ class LiquidityPool(AbstractProtocol):
         i = 0
         r_responses = []
 
+        process = kwargs['process'] if 'process' in list(kwargs.keys()) else None
+
         for i_response in l_responses:
             
             i += 1
@@ -346,10 +407,40 @@ class LiquidityPool(AbstractProtocol):
             
             # Raw processing
             raw_sr = i_response['data'][expected_fields[0]][expected_fields[1]]
-            r_responses.append(self._format_dextrades(raw_sr, resample, period))
+            
+            if process == 'dextrades':
+                r_responses.append(self._format_dextrades(raw_sr, resample, period))
+            
+            elif process == 'topwallets':
+                r_responses.append(self._format_topwallets(raw_sr, resample, period))
         
         return r_responses
-        
+
+    # -- ------------------------------------------------------------------------------------------------ -- #
+    def _format_topwallets(self, raw_responses:list = None, resample:bool = False,
+                                period:str = '1H') -> pd.DataFrame():
+
+        dc_data = {'sender_address': [], 'sender_annotation': [],
+                   'receiver_address': [], 'receiver_annotation': [],
+                   'currency': [], 'amount': [], 'count': [], 
+                   'receiver_count': []}
+
+        for i_response in raw_responses:
+            # i_response = raw_responses[0]
+
+            dc_data['sender_address'].append(i_response['sender']['address'])
+            dc_data['sender_annotation'].append(i_response['sender']['annotation'])
+
+            dc_data['receiver_address'].append(i_response['receiver']['address'])
+            dc_data['receiver_annotation'].append(i_response['receiver']['annotation'])
+
+            dc_data['currency'].append(i_response['currency']['symbol'])
+            dc_data['amount'].append(i_response['amount'])
+            dc_data['count'].append(i_response['count'])
+            dc_data['receiver_count'].append(i_response['receiver_count'])
+
+        return dc_data
+
     # -- ------------------------------------------------------------------------------------------------ -- #
     def _format_dextrades(self, raw_responses:list = None, resample:bool = False,
                                 period:str = '1H') -> pd.DataFrame():
@@ -441,218 +532,3 @@ class LiquidityPool(AbstractProtocol):
             r_data = resampled_df_data
             
         return r_data
-
-# -- --------------------------------------------------------------- ABSTRACT CLASS (CONNECTION TEMPLATE) -- #
-# -- ---------------------------------------------------------------------------------------------------- -- #
-# -- ---------------------------------------------------------------------------------------------------- -- #
-
-class AbstractConnection(metaclass=ABCMeta):
-
-    """ Absctract class for connectivity objects 
-    
-    Atomic class to be used either single or multithread requests to the respective instantiated classes.
-    
-    """
-
-    def __init__(self, source_id:str = '', source_params:dict = {}, connector=None,
-                       **kwargs):
-
-        """ Instantiation of a Connection Abstract Class """
-
-        self.source_id = source_id
-        self.source_params = source_params
-        self.connector = connector
-    
-    # -- ----------------------------------------------------------------------------------------------- -- #
-    def get_connector(self, n_clerks:int = 1):
-
-        """ """
-        
-        self.connector = None
-
-        # single connector : n_clerks = 1
-        if n_clerks == 1:
-            self.connector = rest.create_connector(api_token=self.source_params['api_token'],
-                                                   auth_type=self.source_params['auth_type'])
-        
-        # multiple connectors : n_clerks > 1 
-        elif (n_clerks > 1) & (n_clerks <= 20):
-            self.connector = []
-            [self.connector.append(rest.create_connector(api_token=self.source_params['api_token'],
-                                   auth_type=self.source_params['auth_type'])) for _ in range(n_clerks)]
-        elif n_clerks > 20:
-            raise ValueError(f' No of jobs {n_clerks} is not supported, maximum is 20')
-
-    # -- ----------------------------------------------------------------------------------------------- -- #
-    def get_endpoint(self, call_params, endpoint_params, **kwargs):
-        
-        """
-        This should be the method to get the single thread or multi-thread response from 
-        the corresponding endpoint, according to the provided source
-
-        Parameters
-        ----------
-
-        endpoint_params: dict, (default=None)
-            Parameters as defined in the endpoint, should be the exact same name and with the content
-            and data type as requested by the endpoint. 
-
-        call_params: dict, (default=None)
-            Parameters to guide the way of the call is going to be performed.
-
-        kwargs: 
-            To reserve the posibility of parsing named arguments, which are going to be necessary
-            in order to implement variations for different sources
-
-        Returns
-        -------
-        
-        """
-
-        # call_params['parallel'] = False
-        verbose = kwargs['verbose'] if 'verbose' in list(kwargs.keys()) else False
-
-        # 1. Instantiate a CommsCenter
-        Comms = CommsCenter(capacity=call_params['capacity'],
-                            client_id=self.source_id, client_src=self,
-                            service={'endpoint_params': endpoint_params,
-                                     'call_params': call_params})
-    
-        # 2. Define an execution plan
-        Comms.define_plan(plan='clerk_per_telegram')
-        
-        # 3. Execute plan
-        resulting_data = Comms.execute_plan(verbose=verbose)
-
-        # 4. Release resources
-        Comms = None
-        
-        return resulting_data
-
-
-# -------------------------------------------------------------------------------------- --------------- -- #
-# -------------------------------------------------------------------------------------- CLASS: BITQUERY -- #
-# -------------------------------------------------------------------------------------- --------------- -- #
-
-class Bitquery(AbstractConnection):
-    
-    """ Class for Bitquery.io interaction 
-    
-    Attributes: 
-        
-        source_id
-        api_token
-        api_endpoint
-
-    Public methods:
-        
-        get_endpoint
-
-    Private methods:
-
-        __init__ : Instantiation of the class.
-        __str__  : Print the name of the class and its base parameters.
-        _parse_file : Read from a local file a GraphQL query
-        _parse_errors : Catch and format errors from API calls
-
-    """
-
-    # --------------------------------------------------------------------- Instantiate with class-params -- #
-    # --------------------------------------------------------------------------------------------------- -- #
-
-    def __init__(self, source_id:str = 'bitquery', 
-                       api_token:str = None,
-                       api_endpoint:str = 'https://graphql.bitquery.io'):
-
-        self.api_token = api_token
-        self.api_endpoint = api_endpoint
-        
-        abstract_params = {'api_token': self.api_token, 'api_endpoint': self.api_endpoint,
-                           'auth_type': 'X-API-KEY'}
-
-        super(Bitquery, self).__init__(source_id=source_id,
-                                       source_params=abstract_params,
-                                       connector=None)
-
-        self.connector = None
-
-    # -- ------------------------------------------------------------------------------------------------ -- #
-
-    def __str__(self):
-
-        class_name = self.__class__.__name__
-        message = "\Bitquery(source_params='{}')\n"
-
-        return message.format(class_name, self.source_params)
-       
-    # -- ---------------------------------------------------------- INTERNAL: ERROR PARSING FROM RESPONSE -- #
-    # -- ---------------------------------------------------------- ------------------------------------- -- #
-
-    def _parse_errors(self, error_data:dict) -> None:
-
-        total_errors = len(error_data['errors'])
-        print("\n---------------------------------------------- ")
-        print(f"A total of {total_errors} errors were found in the response")
-        print("---------------------------------------------- \n")
-
-        for i in range(0, len(error_data['errors'])):
-            print(f"Error {str(i)}: Code: {error_data['errors'][i]['code']} \
-                                    Message: {error_data['errors'][i]['message']}")
-        
-    # -- -------------------------------------------------------------------------- GET BITQUERY ENDPOINT -- #
-    # -- -------------------------------------------------------------------------- --------------------- -- #
-
-    def get_endpoint(self, query_content:str = None, query_variables:dict = None,
-                           query_source:str = 'bitquery_queries') -> dict:
-        """
-        Get the data from the endpoint according to the parameters specified.
-        
-        Parameters
-        ----------
-
-        query_content: str, (default=None)
-            raw content for a GraphQL-based query, as it has been read from Queries.py
-
-        query_source: str, (default='file')
-            'bitquery_queries': query used as id that matches with Queries.py a file in Files/Bitquery/
-
-        query_variables: dict, (default=None)
-            To be used with the specific query
-
-        Returns
-        -------
-
-        response: object
-            as the result of the call to the endpoint, which is a JSON parsed to a dict
-
-        References
-        ----------
-
-        [1] GraphQL-based querys can be tested here: https://graphql.bitquery.io/ide/        
-
-        """
-                   
-        if query_source == 'bitquery_queries':
-            query = query_content
-        
-        else:
-            raise ValueError(f"{query_source} is not valid, supported value is 'bitquery_queries' ")
-
-        headers = {'Content-Type': 'application/json'}
-        
-        if self.api_token is not None:
-            headers['X-API-KEY'] = '{}'.format(self.api_token)
-        else: 
-            # Raise error
-            raise ValueError('api_token is not present as an attribute in the source object')
-
-            # -- TODO: Log the error 
-
-        # Build the payload
-        payload = {'query': query, 'variables': query_variables}
-        
-        # -- TODO : use the error parser 
-        response = requests.request("POST", self.api_endpoint, headers=headers, data=json.dumps(payload))
-
-        return response
-

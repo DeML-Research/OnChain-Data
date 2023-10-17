@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+dev_venv
 macOS_venv
 
 # C extensions

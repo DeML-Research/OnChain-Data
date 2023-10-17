@@ -4,7 +4,6 @@ import requests
 from gql.transport.requests import RequestsHTTPTransport
 from gql import gql, Client
 
-
 sqrt_price_x96 = 2350263685060625838582768195014121 # Consecuencia de operaciond el smartcontract
 
 price_1 = (sqrt_price_x96/(2**96))**2 # usdc/weth
