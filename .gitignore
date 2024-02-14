@@ -8,6 +8,7 @@ macOS_venv
 
 # C extensions
 *.so
+.DS_Store
 
 # Distribution / packaging
 .Python

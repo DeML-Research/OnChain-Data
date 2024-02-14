@@ -1,27 +1,3 @@
-
-# import packages for this script
-import sys
-import os
-import pandas as pd
-
-# Load other scripts
-from DeFi.Addresses import cex, dex, tokens
-from Sources import Bitquery
-from OnChain import LiquidityPool
-from DeFi.Queries import uniswap_dex
-
-# Write and Load environment variables
-import env_vars
-
-# Parameters for the example
-p_ini_ts = '2023-01-01T00:00:00'
-p_end_ts = '2023-01-13T00:00:00'
-p_network = 'ethereum'
-p_dex = 'Uniswap'
-p_base_token = tokens['ant']
-p_quote_token = tokens['usdt']
-p_dex_uniswap = dex['ant_usdt']
-
 # Tokens in env variables 
 token_bqy = os.environ['TOKEN_BQ']
 
@@ -76,17 +52,29 @@ last_dt = dextrades_data.iloc[-1]
 dextrades_data.to_csv('uniswap_wbtcusdt_dextrades_jan2023.csv')
 # graphQL query providing raw query content
 
-# ----------------------------------------------------------------------TOP WALLETS -- #
-# --------------------------------------------------------------------- ----------- -- #
+p_ini_ts = '2022-10-01T00:00:00'
+p_end_ts = '2023-10-01T23:59:59'
+p_network = 'ethereum'
+p_dexes = []
+p_cexes = []
 
-# graphQL query providing raw query content
-query_content = uniswap_dex.bitquery_q3
 
-topwallets_data = lp.get_topwallets(source=bitquery,
-                                    token_address=p_base_token,
-                                    ini_ts=p_ini_ts, end_ts=p_end_ts,
-                                    query_source='bitquery_queries', 
-                                    query_content=query_content,
-                                    resample=False)
+for i in range(0, 76):
+    print(i)
+    data_antusdt['ethereum']['smartContractCalls'][i]['smartContractMethod']['name']
 
-pd.DataFrame(topwallets_data[1])
+# Caller of the smart contract (Uniswap v4 LP)
+data['ethereum']['smartContractCalls'][145]['caller']['address']
+
+# A particular call to the smartcontract
+data['ethereum']['smartContractCalls'][145].keys()
+
+# Index and value to update
+data['ethereum']['smartContractCalls'][145]['smartContractMethod']
+data['ethereum']['smartContractCalls'][145]['arguments'][0]['index']
+data['ethereum']['smartContractCalls'][145]['arguments'][0]['value']
+
+import json
+
+with open("uniswapv3_antusdt_dex.json", "w") as file:
+    json.dump(data_antusdt, file)

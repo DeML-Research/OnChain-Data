@@ -83,7 +83,7 @@ class AbstractProtocol(metaclass=ABCMeta):
                 return content_response
 
             except:
-                print(response['errors']['message'])
+                print(response)
                 content_response = None               
 
         else:

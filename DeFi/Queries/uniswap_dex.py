@@ -182,3 +182,49 @@ query ($ini_ts: ISO8601DateTime, $end_ts: ISO8601DateTime, $smartcontract_addres
   }
 }
 """
+
+# ------------------------------------------------------------------------------- Uniswap v3 SmartContract -- #
+# ------------------------------------------------------------------------------- ------------------------ -- #
+
+bitquery_q5 = """
+query ($ini_ts: ISO8601DateTime, $end_ts: ISO8601DateTime, $smartcontract_address: String!) {
+  ethereum(network: ethereum) {
+    smartContractCalls(smartContractAddress: {is: $smartcontract_address}) {
+      block(time: {since: $ini_ts, till: $end_ts}) {
+        timestamp {
+          iso8601
+        }
+        height
+      }
+      amount
+      gasValue
+      external
+      count
+      arguments {
+        argument
+        index
+        value
+        argumentType
+      }
+      smartContractMethod {
+        name
+        signature
+        signatureHash
+      }
+      caller {
+        address
+        annotation
+        smartContract {
+          contractType
+          protocolType
+          currency {
+            name
+            symbol
+          }
+        }
+      }
+      
+    }
+  }
+}
+"""
